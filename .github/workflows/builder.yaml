@@ -1,0 +1,59 @@
+name: Builder
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    strategy:
+      matrix:
+        addon: [scp-backup]
+        arch: [aarch64, amd64, armhf, armv7, i386]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up build context
+        id: meta
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            VERSION=edge
+          else
+            VERSION=pr-${{ github.event.number }}
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "registry=ghcr.io" >> $GITHUB_OUTPUT
+          echo "image_name=${{ github.repository_owner }}/scp-backup" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.meta.outputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: home-assistant/builder@master
+        with:
+          args: |
+            --${{ matrix.arch }}
+            --target ${{ matrix.addon }}
+            --docker-hub-check
+            ${{ github.event_name != 'pull_request' && '--push' || '' }}
+        env:
+          CAS_API_TOKEN: ${{ secrets.CAS_API_TOKEN }}

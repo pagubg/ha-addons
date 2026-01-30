@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <circle cx="256" cy="256" r="240" fill="#41BDF5"/>
+
+  <!-- Cloud -->
+  <path d="M 150 200 Q 150 170 180 170 Q 195 145 220 145 Q 250 145 260 170 Q 290 170 290 200 Q 290 220 310 230 L 310 280 Q 310 295 295 295 L 165 295 Q 150 295 150 280 Z" fill="#FFFFFF"/>
+
+  <!-- Upload arrow -->
+  <path d="M 256 320 L 256 250 M 220 270 L 256 240 L 292 270" stroke="#41BDF5" stroke-width="20" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Server base -->
+  <rect x="180" y="340" width="152" height="40" rx="5" fill="#FFFFFF"/>
+  <rect x="190" y="390" width="132" height="8" fill="#41BDF5"/>
+
+  <!-- Server indicators -->
+  <circle cx="200" cy="360" r="5" fill="#4CAF50"/>
+  <circle cx="220" cy="360" r="5" fill="#4CAF50"/>
+  <circle cx="240" cy="360" r="5" fill="#2196F3"/>
+</svg>

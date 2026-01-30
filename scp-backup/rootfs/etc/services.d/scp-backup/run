@@ -1,0 +1,6 @@
+#!/command/execlineb -P
+# Home Assistant addon service script
+
+with-contenv
+
+/usr/local/bin/main.sh

@@ -1,0 +1,63 @@
+---
+name: SCP Backup
+version: 1.0.0
+slug: scp-backup
+description: Backup Home Assistant to a remote server via SCP
+url: https://github.com/pagubg/ha-addons
+codeowners:
+  - "@pagubg"
+startup: application
+boot: manual
+hassio_api: true
+hassio_role: backup
+map:
+  - backup:rw
+webui: null
+ingress: null
+panel_icon: mdi:cloud-upload
+panel_title: SCP Backup
+icon: mdi:cloud-upload
+logo: mdi:cloud-upload
+
+image: ghcr.io/pagubg/scp-backup-{arch}
+
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+
+options:
+  ssh_host: ""
+  ssh_port: 22
+  ssh_user: ""
+  ssh_private_key: ""
+  remote_path: "/backup"
+  transfer_mode: "manual"
+  schedule_cron: ""
+  create_backup_before_transfer: false
+  backup_type: "full"
+  backup_name_prefix: "hassio"
+  keep_local_backup: true
+  delete_after_days: 0
+  transfer_timeout: 300
+  verify_transfer: true
+  log_level: "info"
+
+schema:
+  ssh_host: str
+  ssh_port: int(1,65535)
+  ssh_user: str
+  ssh_private_key: password
+  remote_path: str
+  transfer_mode: list(manual|scheduled)
+  schedule_cron: str?
+  create_backup_before_transfer: bool
+  backup_type: list(full|partial)?
+  backup_name_prefix: str?
+  keep_local_backup: bool
+  delete_after_days: int(0,365)?
+  transfer_timeout: int(30,3600)
+  verify_transfer: bool
+  log_level: list(trace|debug|info|notice|warning|error|fatal)

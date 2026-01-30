@@ -1,0 +1,5 @@
+#!/command/execlineb -P
+# Home Assistant addon finish script
+
+# Cleanup on service stop
+echo "SCP Backup addon stopping..."

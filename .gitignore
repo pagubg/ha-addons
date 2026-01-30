@@ -1,0 +1,23 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+.docker/
+dist/
+build/
+
+# Secrets and sensitive files
+.env
+.env.local
+secrets.json
+*.pem
+*.key
+
+# Addon config
+data/
+options.json

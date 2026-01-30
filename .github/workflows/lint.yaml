@@ -1,0 +1,28 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Home Assistant addon linter
+        uses: home-assistant/addons-linter@master
+        with:
+          path: ./scp-backup
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: ShellCheck shell scripts
+        run: |
+          shellcheck -x scp-backup/src/*.sh
+          shellcheck -x scp-backup/rootfs/etc/services.d/scp-backup/*
