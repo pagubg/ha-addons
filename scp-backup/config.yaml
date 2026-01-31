@@ -15,18 +15,20 @@ hassio_api: true
 hassio_role: backup
 map:
   - backup:rw
-webui: null
-ingress: null
+
 panel_icon: mdi:cloud-upload
 panel_title: SCP Backup
 icon: icon.svg
 logo: icon.svg
 
-image: ghcr.io/pagubg/scp-backup:edge-{BUILD_ARCH}
+image: ghcr.io/pagubg/scp-backup:edge-{arch}
 
 arch:
   - aarch64
   - amd64
+
+environment:
+  LOG_LEVEL: info
 
 options:
   ssh_host: ""
