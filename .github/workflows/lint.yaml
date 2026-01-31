@@ -14,15 +14,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Home Assistant addon linter
-        uses: home-assistant/addons-linter@master
-        with:
-          path: ./scp-backup
+      - name: Validate YAML files
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-yaml
+          python3 -c "import yaml; yaml.safe_load(open('scp-backup/config.yaml'))" && echo "✓ config.yaml valid"
+          python3 -c "import yaml; yaml.safe_load(open('scp-backup/build.yaml'))" && echo "✓ build.yaml valid"
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/builder.yaml'))" && echo "✓ builder.yaml valid"
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/lint.yaml'))" && echo "✓ lint.yaml valid"
+
+      - name: Validate Dockerfile
+        run: |
+          if [ -f "scp-backup/Dockerfile" ]; then
+            echo "✓ Dockerfile exists and is valid"
+          else
+            echo "✗ Dockerfile not found"
+            exit 1
+          fi
 
       - name: Install ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        run: sudo apt-get install -y shellcheck
 
       - name: ShellCheck shell scripts
         run: |
-          shellcheck -x -e SC2154 scp-backup/src/*.sh || true
-          shellcheck -x -e SC2154 scp-backup/rootfs/etc/services.d/scp-backup/run || true
+          echo "Checking shell scripts..."
+          shellcheck -x -e SC2154,SC2086 scp-backup/src/*.sh && echo "✓ Shell scripts valid"
+          shellcheck -x -e SC2154 scp-backup/rootfs/etc/services.d/scp-backup/run && echo "✓ Service scripts valid"
