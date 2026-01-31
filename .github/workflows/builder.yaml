@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         addon: [scp-backup]
-        arch: [armv7, amd64]
+        arch: [aarch64, amd64]
 
     steps:
       - name: Checkout repository

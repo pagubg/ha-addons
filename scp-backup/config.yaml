@@ -22,7 +22,7 @@ logo: icon.svg
 image: ghcr.io/pagubg/scp-backup-{arch}
 
 arch:
-  - armv7
+  - aarch64
   - amd64
 
 options:
