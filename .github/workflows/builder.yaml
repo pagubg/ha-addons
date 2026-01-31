@@ -44,5 +44,5 @@ jobs:
         with:
           context: ./scp-backup
           push: true
-          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}-${{ matrix.arch }}
+          tags: ${{ steps.meta.outputs.image }}-${{ matrix.arch }}:latest
           platforms: ${{ steps.meta.outputs.platforms }}
