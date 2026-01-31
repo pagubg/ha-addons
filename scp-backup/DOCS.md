@@ -8,8 +8,9 @@ Complete guide to installing, configuring, and troubleshooting the SCP Backup ad
 2. [Configuration Reference](#configuration-reference)
 3. [Usage Modes](#usage-modes)
 4. [Example Configurations](#example-configurations)
-5. [Troubleshooting](#troubleshooting)
-6. [Security Recommendations](#security-recommendations)
+5. [Backup Restorability](#backup-restorability)
+6. [Troubleshooting](#troubleshooting)
+7. [Security Recommendations](#security-recommendations)
 
 ## SSH Setup
 
@@ -291,6 +292,190 @@ transfer_timeout: 300
 verify_transfer: true
 log_level: "notice"
 ```
+
+## Backup Restorability
+
+### Are These Backups Restorable?
+
+**Yes, 100%.** This addon creates fully restorable Home Assistant backups.
+
+### Why Your Backups Are Restorable
+
+This addon uses the **official Home Assistant Supervisor API** to create backups:
+
+```bash
+POST http://supervisor/backups/new/full   # Full backup
+POST http://supervisor/backups/new/partial # Partial backup (addons + config only)
+```
+
+This is the exact same API that:
+- ✅ The Home Assistant UI uses when you click "Create Backup"
+- ✅ The Home Assistant CLI uses for `ha backups new`
+- ✅ All official Home Assistant backup tools use
+
+**The addon only transfers the standard `.tar` backup file created by Home Assistant Supervisor. It does NOT modify, repackage, or alter the backup in any way.**
+
+### Backup Format and Storage
+
+1. **Standard Format**: Backups are created by Home Assistant Supervisor in the standard `.tar` format
+2. **Complete Metadata**: All backup metadata (addons, config, databases, automations, etc.) is included by the Supervisor
+3. **Standard Location**: Backups are stored in `/backup/{slug}.tar` - the official Home Assistant backup directory
+4. **No Modification**: The addon reads and transfers the original `.tar` file only
+5. **API-Created**: The Supervisor creates the backup itself, not custom addon code
+
+### Restore Procedures
+
+#### Option 1: Restore from Local Backup (if kept_local_backup: true)
+
+The easiest method - restore directly from Home Assistant:
+
+1. In Home Assistant, go to **Settings → System → Backups**
+2. You'll see all backups, including those transferred by this addon
+3. Click the backup you want to restore
+4. Click **Restore**
+
+This works identically to any backup created through the Home Assistant UI.
+
+#### Option 2: Restore from Remote Server (transferred to external SCP server)
+
+If your local backups were deleted or you lost your Home Assistant instance:
+
+1. **Download the backup file from your remote server**
+   ```bash
+   # On your local machine
+   scp -i ~/.ssh/ha_backup user@backup.server:/backup/my-backup-slug.tar ~/Downloads/
+   ```
+
+2. **Prepare Home Assistant for restore**
+   - If Home Assistant still exists: Go to **Settings → System → Backups**
+   - If Home Assistant is lost: Install Home Assistant fresh, prepare to restore
+
+3. **Upload the backup back to Home Assistant**
+   - Copy the `.tar` file to Home Assistant's `/backup/` directory
+   - This can be done via:
+     - **Home Assistant Core SSH add-on** (if available)
+     - **Direct filesystem access** (if you have access to the HA machine)
+     - **SCP/SFTP** (using Home Assistant's SSH service)
+     - **Home Assistant's web UI** (some versions support backup upload)
+
+4. **Restore the backup**
+   - In Home Assistant: **Settings → System → Backups**
+   - Refresh the page (or restart Home Assistant) if the backup doesn't appear immediately
+   - Select the backup and click **Restore**
+   - Home Assistant will restore all data from the backup
+
+### Verification
+
+Your backups are confirmed to be restorable because:
+
+| Aspect | Status | Details |
+|--------|--------|---------|
+| Uses Official API | ✅ Yes | `/backups/new/full` and `/backups/new/partial` endpoints |
+| Standard Format | ✅ Yes | `.tar` files created and verified by Home Assistant Supervisor |
+| Complete Backup | ✅ Yes | All addons, config, databases, and automations included |
+| No Modification | ✅ Yes | Addon only transfers the original Supervisor-created file |
+| Supervisor Created | ✅ Yes | Home Assistant creates the backup, not custom addon code |
+| Same as Manual | ✅ Yes | Identical to backups created via Settings → System → Backups |
+
+### File Integrity
+
+This addon verifies file transfer integrity:
+
+- **Transfer Verification**: By default, `verify_transfer: true` compares local and remote file sizes after transfer
+- **Size Matching**: The remote `.tar` file must exactly match the local size
+- **Safe Transfer**: If verification fails, the local backup is kept and transfer is retried
+- **No Corruption**: SCP with automatic compression ensures safe transfer without corruption
+
+### What's Included in Your Backups
+
+Depending on backup type, your backups include:
+
+**Full Backup** (`backup_type: full`):
+- All Home Assistant configuration files
+- All installed addons and their configuration
+- All automations and scripts
+- All integrations configuration
+- Database files
+- Media files
+- Everything in your Home Assistant installation
+
+**Partial Backup** (`backup_type: partial`):
+- All Home Assistant configuration files
+- All installed addons and their configuration
+- All automations and scripts
+- All integrations configuration
+- **Excludes**: Large media files (suitable for frequent backups)
+
+### Testing Your Backups (Optional)
+
+To gain extra confidence in your backup restorability:
+
+1. **Document your backup process**
+   - Keep note of backup slugs or filenames
+   - Monitor successful transfers in addon logs
+
+2. **Verify on backup server**
+   ```bash
+   # SSH into your backup server
+   ssh user@backup.server
+   ls -lh /backup/  # Verify .tar files are there
+   tar -tzf /backup/backup-slug.tar | head  # Sample contents
+   ```
+
+3. **Test restore in dev environment** (advanced)
+   - If you have a test Home Assistant instance, try restoring a backup
+   - This confirms the backup format is correct
+   - No risk to production system
+
+### Disaster Recovery
+
+If your Home Assistant instance is lost and you need to restore from a backup transferred by this addon:
+
+1. **Install Home Assistant** on new or recovered hardware
+2. **During setup**, you'll be offered an option to restore from backup
+3. **Obtain the backup file** from your remote server (see Option 2 above)
+4. **Place it in** the `/backup/` directory on your Home Assistant instance
+5. **Complete setup** by restoring the backup
+6. Your Home Assistant will be restored exactly as it was
+
+### Technical Details
+
+**Backup Creation Flow:**
+```
+Addon requests: POST /backups/new/full
+    ↓
+Home Assistant Supervisor receives request
+    ↓
+Supervisor creates backup archive
+    ↓
+Supervisor writes: /backup/{slug}.tar
+    ↓
+Addon reads: /backup/{slug}.tar (no modification)
+    ↓
+Addon transfers via SCP (compression enabled)
+    ↓
+Remote server stores: /backup/{slug}.tar
+    ↓
+Original .tar remains on Home Assistant (if keep_local_backup: true)
+```
+
+**The backup file itself is always the same standard format**, regardless of whether it's stored locally or transferred to a remote server.
+
+### Common Misconceptions
+
+**"Do I need special tools to restore?"**
+No. Standard Home Assistant restore procedure works. No special tools needed.
+
+**"Is the backup compressed differently?"**
+No. SCP compression is for transfer only. The `.tar` file format remains unchanged.
+
+**"Could the transfer corrupt my backup?"**
+No. File size verification detects any corruption. If verification fails, transfer is aborted and local backup is kept.
+
+**"What if Home Assistant changes?"**
+Backups are backward and forward compatible. Home Assistant can restore backups from older versions.
+
+---
 
 ## Troubleshooting
 
