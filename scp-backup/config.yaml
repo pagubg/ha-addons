@@ -6,6 +6,9 @@ description: Backup Home Assistant to a remote server via SCP
 url: https://github.com/pagubg/ha-addons
 codeowners:
   - "@pagubg"
+documentation: https://github.com/pagubg/ha-addons/blob/main/scp-backup/DOCS.md
+support: https://github.com/pagubg/ha-addons/issues
+issues: https://github.com/pagubg/ha-addons/issues
 startup: application
 boot: manual
 hassio_api: true
@@ -19,7 +22,7 @@ panel_title: SCP Backup
 icon: icon.svg
 logo: icon.svg
 
-image: ghcr.io/pagubg/scp-backup-{arch}
+image: ghcr.io/pagubg/scp-backup:edge-{arch}
 
 arch:
   - aarch64
