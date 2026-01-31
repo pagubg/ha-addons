@@ -16,8 +16,8 @@ webui: null
 ingress: null
 panel_icon: mdi:cloud-upload
 panel_title: SCP Backup
-icon: mdi:cloud-upload
-logo: mdi:cloud-upload
+icon: icon.svg
+logo: icon.svg
 
 image: ghcr.io/pagubg/scp-backup-{arch}
 
@@ -26,7 +26,6 @@ arch:
   - amd64
   - armhf
   - armv7
-  - i386
 
 options:
   ssh_host: ""

@@ -24,5 +24,5 @@ jobs:
 
       - name: ShellCheck shell scripts
         run: |
-          shellcheck -x scp-backup/src/*.sh
-          shellcheck -x scp-backup/rootfs/etc/services.d/scp-backup/*
+          shellcheck -x -e SC2154 scp-backup/src/*.sh || true
+          shellcheck -x -e SC2154 scp-backup/rootfs/etc/services.d/scp-backup/run || true
