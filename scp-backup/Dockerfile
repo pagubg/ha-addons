@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 
 RUN apk add --no-cache \
     bash \
@@ -8,15 +8,7 @@ RUN apk add --no-cache \
     curl \
     jq \
     coreutils \
-    dcron \
-    git
-
-RUN mkdir -p /usr/lib/bashio && \
-    curl -sSL https://github.com/hassio-addons/bashio/archive/master.tar.gz | tar xzf - -C /tmp && \
-    cp -r /tmp/bashio-master/lib/* /usr/lib/bashio/ && \
-    rm -rf /tmp/bashio-master
-
-ENV PATH="/usr/lib/bashio:${PATH}"
+    dcron
 
 COPY src /usr/local/bin/
 

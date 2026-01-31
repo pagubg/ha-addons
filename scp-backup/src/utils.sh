@@ -3,29 +3,29 @@
 
 set -e
 
-# Logging wrapper using bashio
+# Logging wrappers
 log_debug() {
-    bashio::log.debug "$@"
+    echo "[DEBUG] $*" >&2
 }
 
 log_info() {
-    bashio::log.info "$@"
+    echo "[INFO] $*"
 }
 
 log_notice() {
-    bashio::log.notice "$@"
+    echo "[NOTICE] $*"
 }
 
 log_warning() {
-    bashio::log.warning "$@"
+    echo "[WARNING] $*" >&2
 }
 
 log_error() {
-    bashio::log.error "$@"
+    echo "[ERROR] $*" >&2
 }
 
 log_fatal() {
-    bashio::log.fatal "$@"
+    echo "[FATAL] $*" >&2
 }
 
 # Get supervisor token

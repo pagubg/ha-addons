@@ -9,31 +9,34 @@ source /usr/local/bin/transfer.sh
 source /usr/local/bin/scheduler.sh
 
 # Load configuration from /data/options.json
-bashio::log.info "Loading configuration..."
+echo "Loading configuration..."
 
-SSH_HOST=$(bashio::config 'ssh_host')
-SSH_PORT=$(bashio::config 'ssh_port')
-SSH_USER=$(bashio::config 'ssh_user')
-SSH_PRIVATE_KEY=$(bashio::config 'ssh_private_key')
-REMOTE_PATH=$(bashio::config 'remote_path')
-TRANSFER_MODE=$(bashio::config 'transfer_mode')
-SCHEDULE_CRON=$(bashio::config 'schedule_cron // empty')
-CREATE_BACKUP=$(bashio::config 'create_backup_before_transfer')
-BACKUP_TYPE=$(bashio::config 'backup_type // "full"')
-TRANSFER_TIMEOUT=$(bashio::config 'transfer_timeout')
-VERIFY_TRANSFER=$(bashio::config 'verify_transfer')
-KEEP_LOCAL_BACKUP=$(bashio::config 'keep_local_backup')
-DELETE_AFTER_DAYS=$(bashio::config 'delete_after_days // 0')
-LOG_LEVEL=$(bashio::config 'log_level // "info"')
+# Use jq to read config, with defaults
+CONFIG_FILE="${CONFIG_FILE:-/data/options.json}"
+[[ ! -f "$CONFIG_FILE" ]] && CONFIG_FILE="/tmp/options.json"
+
+SSH_HOST=$(jq -r '.ssh_host // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+SSH_PORT=$(jq -r '.ssh_port // 22' "$CONFIG_FILE" 2>/dev/null || echo "22")
+SSH_USER=$(jq -r '.ssh_user // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+SSH_PRIVATE_KEY=$(jq -r '.ssh_private_key // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+REMOTE_PATH=$(jq -r '.remote_path // "/backup"' "$CONFIG_FILE" 2>/dev/null || echo "/backup")
+TRANSFER_MODE=$(jq -r '.transfer_mode // "manual"' "$CONFIG_FILE" 2>/dev/null || echo "manual")
+SCHEDULE_CRON=$(jq -r '.schedule_cron // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+CREATE_BACKUP=$(jq -r '.create_backup_before_transfer // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+BACKUP_TYPE=$(jq -r '.backup_type // "full"' "$CONFIG_FILE" 2>/dev/null || echo "full")
+TRANSFER_TIMEOUT=$(jq -r '.transfer_timeout // 300' "$CONFIG_FILE" 2>/dev/null || echo "300")
+VERIFY_TRANSFER=$(jq -r '.verify_transfer // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+KEEP_LOCAL_BACKUP=$(jq -r '.keep_local_backup // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+DELETE_AFTER_DAYS=$(jq -r '.delete_after_days // 0' "$CONFIG_FILE" 2>/dev/null || echo "0")
 
 # Validate required configuration
 if [[ -z "$SSH_HOST" || -z "$SSH_USER" || -z "$SSH_PRIVATE_KEY" ]]; then
-    log_fatal "Missing required configuration: ssh_host, ssh_user, ssh_private_key"
+    log_error "Missing required configuration: ssh_host, ssh_user, ssh_private_key"
     exit 1
 fi
 
 # Setup SSH
-bashio::log.info "Setting up SSH configuration..."
+echo "[INFO] Setting up SSH configuration..."
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
@@ -57,7 +60,7 @@ EOF
 
 chmod 600 /root/.ssh/config
 
-log_info "SSH configuration complete"
+echo "[INFO] SSH configuration complete"
 
 # Handle transfer modes
 if [[ "$TRANSFER_MODE" == "scheduled" ]]; then

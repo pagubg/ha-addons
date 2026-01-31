@@ -21,21 +21,24 @@ setup_scheduler() {
         log_warning "Cron expression validation is basic - please verify format: $schedule_cron"
     fi
 
-    # Create wrapper script
+    # Create wrapper script that reads config from file
     cat > /usr/local/bin/run-transfer.sh << 'EOF'
 #!/bin/bash
 source /usr/local/bin/utils.sh
 source /usr/local/bin/backup.sh
 source /usr/local/bin/transfer.sh
 
-# Load configuration
-SSH_HOST=$(bashio::config 'ssh_host')
-SSH_PORT=$(bashio::config 'ssh_port')
-SSH_USER=$(bashio::config 'ssh_user')
-REMOTE_PATH=$(bashio::config 'remote_path')
-TRANSFER_TIMEOUT=$(bashio::config 'transfer_timeout')
-VERIFY_TRANSFER=$(bashio::config 'verify_transfer')
-KEEP_LOCAL_BACKUP=$(bashio::config 'keep_local_backup')
+# Load configuration from file
+CONFIG_FILE="${CONFIG_FILE:-/data/options.json}"
+[[ ! -f "$CONFIG_FILE" ]] && CONFIG_FILE="/tmp/options.json"
+
+SSH_HOST=$(jq -r '.ssh_host // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+SSH_PORT=$(jq -r '.ssh_port // 22' "$CONFIG_FILE" 2>/dev/null || echo "22")
+SSH_USER=$(jq -r '.ssh_user // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+REMOTE_PATH=$(jq -r '.remote_path // "/backup"' "$CONFIG_FILE" 2>/dev/null || echo "/backup")
+TRANSFER_TIMEOUT=$(jq -r '.transfer_timeout // 300' "$CONFIG_FILE" 2>/dev/null || echo "300")
+VERIFY_TRANSFER=$(jq -r '.verify_transfer // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
+KEEP_LOCAL_BACKUP=$(jq -r '.keep_local_backup // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
 
 log_info "Scheduled transfer started"
 
