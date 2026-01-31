@@ -22,7 +22,7 @@ panel_title: SCP Backup
 icon: icon.svg
 logo: icon.svg
 
-image: ghcr.io/pagubg/scp-backup:edge-{arch}
+image: ghcr.io/pagubg/scp-backup:edge-{BUILD_ARCH}
 
 arch:
   - aarch64

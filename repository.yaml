@@ -6,3 +6,14 @@ maintainer: pagubg
 documentation: https://github.com/pagubg/ha-addons
 issues: https://github.com/pagubg/ha-addons/issues
 source: https://github.com/pagubg/ha-addons
+
+addons:
+  scp-backup:
+    name: SCP Backup
+    description: Backup Home Assistant to a remote server via SCP
+    url: https://github.com/pagubg/ha-addons/tree/main/scp-backup
+    maintainer: pagubg
+    documentation: https://github.com/pagubg/ha-addons/blob/main/scp-backup/DOCS.md
+    issues: https://github.com/pagubg/ha-addons/issues
+    icon: https://raw.githubusercontent.com/pagubg/ha-addons/main/scp-backup/icon.svg
+    logo: https://raw.githubusercontent.com/pagubg/ha-addons/main/scp-backup/icon.svg
