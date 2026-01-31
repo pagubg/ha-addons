@@ -10,5 +10,5 @@ labels:
   org.opencontainers.image.title: "SCP Backup"
   org.opencontainers.image.description: "Backup Home Assistant to a remote server via SCP"
   org.opencontainers.image.source: "https://github.com/pagubg/ha-addons"
-  org.opencontainers.image.authors: "HA Addon Developer"
+  org.opencontainers.image.authors: "pagubg"
   org.opencontainers.image.licenses: "Apache-2.0"
