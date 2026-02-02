@@ -18,7 +18,10 @@ transfer_backup() {
     local local_file="/backup/${slug}.tar"
 
     if [[ ! -f "$local_file" ]]; then
-        log_error "Backup file not found: $local_file"
+        log_warning "Backup file not found: $local_file"
+        log_warning "This backup exists in the API but the file is missing (may be partial/deleted)"
+        log_debug "Available files in /backup/:"
+        ls -lh /backup/*.tar 2>/dev/null | while read line; do log_debug "  $line"; done
         return 1
     fi
 
@@ -142,10 +145,19 @@ transfer_all_backups() {
 
     log_info "Transfer complete - Success: $success_count, Failed: $fail_count"
 
-    if [[ $fail_count -gt 0 ]]; then
+    # Only fail if ALL transfers failed (no successes)
+    if [[ $success_count -eq 0 && $fail_count -gt 0 ]]; then
+        log_error "All backup transfers failed"
         return 1
     fi
 
+    # Partial success - some worked, some didn't
+    if [[ $fail_count -gt 0 ]]; then
+        log_warning "Some backups failed to transfer, but $success_count succeeded"
+        return 0
+    fi
+
+    # All succeeded
     return 0
 }
 
