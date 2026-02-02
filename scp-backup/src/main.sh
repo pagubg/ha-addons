@@ -40,7 +40,10 @@ echo "[INFO] Setting up SSH configuration..."
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
-# Write private key
+# Write private key with proper normalization
+# Home Assistant UI may store the key with escaped \n sequences
+# Use echo -e to interpret these escape sequences into actual newlines
+SSH_PRIVATE_KEY=$(echo -e "$SSH_PRIVATE_KEY")
 echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa
 chmod 600 /root/.ssh/id_rsa
 
