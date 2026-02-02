@@ -16,7 +16,7 @@ create_new_backup() {
 
     log_info "Creating new $backup_type backup..."
 
-    local endpoint="/backups/new/${backup_type}"
+    local endpoint="/backup/new/${backup_type}"
     local response
 
     if ! response=$(call_supervisor_api "POST" "$endpoint" "{}"); then
@@ -42,8 +42,8 @@ get_all_backups() {
     log_debug "Fetching backup list..."
 
     local response
-    if ! response=$(call_supervisor_api "GET" "/backups"); then
-        log_error "Failed to fetch backups"
+    if ! response=$(call_supervisor_api "GET" "/backup"); then
+        log_error "Failed to fetch backup list"
         return 1
     fi
 
@@ -70,7 +70,7 @@ get_backup_info() {
     log_debug "Fetching backup info: $slug"
 
     local response
-    if ! response=$(call_supervisor_api "GET" "/backups/$slug/info"); then
+    if ! response=$(call_supervisor_api "GET" "/backup/$slug/info"); then
         log_error "Failed to fetch backup info: $slug"
         return 1
     fi
@@ -89,7 +89,7 @@ delete_backup() {
 
     log_info "Deleting backup: $slug"
 
-    if ! call_supervisor_api "DELETE" "/backups/$slug" > /dev/null; then
+    if ! call_supervisor_api "DELETE" "/backup/$slug" > /dev/null; then
         log_error "Failed to delete backup: $slug"
         return 1
     fi
