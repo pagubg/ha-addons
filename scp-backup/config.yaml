@@ -1,6 +1,6 @@
 ---
 name: SCP Backup
-version: 1.0.5
+version: 1.0.6
 slug: scp-backup
 description: Backup Home Assistant to a remote server via SCP
 url: https://github.com/pagubg/ha-addons
