@@ -44,7 +44,15 @@ call_supervisor_api() {
     local data="${3:-}"
 
     local token
-    token=$(get_supervisor_token)
+    if ! token=$(get_supervisor_token); then
+        log_error "Cannot call Supervisor API - token unavailable"
+        return 1
+    fi
+
+    if [[ -z "$token" ]]; then
+        log_error "Supervisor token is empty"
+        return 1
+    fi
 
     local url="http://supervisor${endpoint}"
     local curl_args=(
@@ -59,8 +67,9 @@ call_supervisor_api() {
     fi
 
     log_debug "API call: $method $endpoint"
-    if ! response=$(curl "${curl_args[@]}" "$url"); then
+    if ! response=$(curl "${curl_args[@]}" "$url" 2>&1); then
         log_error "API call failed: $method $endpoint"
+        log_error "Response: $response"
         return 1
     fi
 
