@@ -40,12 +40,30 @@ echo "[INFO] Setting up SSH configuration..."
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
-# Write private key with proper normalization
-# Home Assistant UI may store the key with escaped \n sequences
-# Use echo -e to interpret these escape sequences into actual newlines
-SSH_PRIVATE_KEY=$(echo -e "$SSH_PRIVATE_KEY")
-echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa
+# Write private key directly from JSON to avoid variable interpretation issues
+# This preserves the exact format as stored in Home Assistant
+echo "[DEBUG] Writing SSH private key..."
+jq -r '.ssh_private_key' "$CONFIG_FILE" > /root/.ssh/id_rsa
 chmod 600 /root/.ssh/id_rsa
+
+# Debug: Check key format
+echo "[DEBUG] Key file info:"
+ls -lh /root/.ssh/id_rsa
+echo "[DEBUG] First line of key:"
+head -1 /root/.ssh/id_rsa
+echo "[DEBUG] Last line of key:"
+tail -1 /root/.ssh/id_rsa
+echo "[DEBUG] Key has $(wc -l < /root/.ssh/id_rsa) lines"
+
+# Validate key can be read by SSH
+if ! ssh-keygen -y -f /root/.ssh/id_rsa >/dev/null 2>&1; then
+    log_error "SSH private key is invalid or corrupted"
+    log_error "Please ensure you copied the complete, unencrypted private key"
+    log_error "Key should start with: -----BEGIN OPENSSH PRIVATE KEY-----"
+    log_error "Key should end with: -----END OPENSSH PRIVATE KEY-----"
+    exit 1
+fi
+echo "[INFO] SSH key validated successfully"
 
 # Create SSH config
 cat > /root/.ssh/config << EOF
