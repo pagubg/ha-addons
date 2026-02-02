@@ -29,6 +29,14 @@ VERIFY_TRANSFER=$(jq -r '.verify_transfer // true' "$CONFIG_FILE" 2>/dev/null ||
 KEEP_LOCAL_BACKUP=$(jq -r '.keep_local_backup // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
 DELETE_AFTER_DAYS=$(jq -r '.delete_after_days // 0' "$CONFIG_FILE" 2>/dev/null || echo "0")
 
+# Debug: Show configuration
+log_debug "Configuration loaded:"
+log_debug "  Transfer mode: $TRANSFER_MODE"
+log_debug "  Create backup before transfer: $CREATE_BACKUP"
+log_debug "  Backup type: $BACKUP_TYPE"
+log_debug "  Keep local backup: $KEEP_LOCAL_BACKUP"
+log_debug "  Verify transfer: $VERIFY_TRANSFER"
+
 # Validate required configuration
 if [[ -z "$SSH_HOST" || -z "$SSH_USER" || -z "$SSH_PRIVATE_KEY" ]]; then
     log_error "Missing required configuration: ssh_host, ssh_user, ssh_private_key"

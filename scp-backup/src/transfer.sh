@@ -15,14 +15,33 @@ transfer_backup() {
     local timeout="$6"
     local verify="${7:-true}"
 
+    # Try direct slug.tar format first (standard Home Assistant format)
     local local_file="/backup/${slug}.tar"
 
+    # If not found, search for files containing the slug
     if [[ ! -f "$local_file" ]]; then
-        log_warning "Backup file not found: $local_file"
-        log_warning "This backup exists in the API but the file is missing (may be partial/deleted)"
-        log_debug "Available files in /backup/:"
-        ls -lh /backup/*.tar 2>/dev/null | while read line; do log_debug "  $line"; done
-        return 1
+        log_debug "File not found: $local_file"
+        log_debug "Searching for backup file containing slug: $slug"
+
+        # Search for any .tar file ending with _{slug}.tar (common naming pattern)
+        local found_file=$(find /backup -maxdepth 1 -name "*_${slug}.tar" -type f 2>/dev/null | head -1)
+
+        # If still not found, try containing the slug anywhere in the name
+        if [[ -z "$found_file" ]]; then
+            found_file=$(find /backup -maxdepth 1 -name "*${slug}*.tar" -type f 2>/dev/null | head -1)
+        fi
+
+        if [[ -n "$found_file" && -f "$found_file" ]]; then
+            log_info "Found backup file: $(basename "$found_file")"
+            local_file="$found_file"
+        else
+            log_warning "Backup file not found for slug: $slug"
+            log_warning "Tried: /backup/${slug}.tar and /backup/*${slug}*.tar"
+            log_warning "This backup may be missing, corrupted, or stored elsewhere"
+            log_debug "Available backup files:"
+            find /backup -maxdepth 1 -name "*.tar" -type f -exec ls -lh {} \; 2>/dev/null | while read line; do log_debug "  $line"; done
+            return 1
+        fi
     fi
 
     local local_size
