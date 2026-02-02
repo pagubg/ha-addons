@@ -40,27 +40,45 @@ echo "[INFO] Setting up SSH configuration..."
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
-# Write private key directly from JSON to avoid variable interpretation issues
-# This preserves the exact format as stored in Home Assistant
-echo "[DEBUG] Writing SSH private key..."
-jq -r '.ssh_private_key' "$CONFIG_FILE" > /root/.ssh/id_rsa
+# Read the key from JSON
+SSH_KEY_RAW=$(jq -r '.ssh_private_key' "$CONFIG_FILE")
+
+# Check if key is single-line (Home Assistant UI often strips newlines)
+if [[ $(echo "$SSH_KEY_RAW" | wc -l) -eq 1 ]]; then
+    log_info "Detected single-line key format, reformatting..."
+
+    # Extract components
+    BEGIN_LINE=$(echo "$SSH_KEY_RAW" | grep -o '^-----BEGIN[^-]*-----')
+    END_LINE=$(echo "$SSH_KEY_RAW" | grep -o '-----END[^-]*-----$')
+
+    # Extract base64 content (everything between BEGIN and END)
+    BASE64_CONTENT=$(echo "$SSH_KEY_RAW" | sed 's/^-----BEGIN[^-]*-----\s*//' | sed 's/\s*-----END[^-]*-----$//')
+
+    # Write properly formatted key
+    cat > /root/.ssh/id_rsa << EOF
+$BEGIN_LINE
+$BASE64_CONTENT
+$END_LINE
+EOF
+else
+    # Key already has proper newlines
+    echo "$SSH_KEY_RAW" > /root/.ssh/id_rsa
+fi
+
 chmod 600 /root/.ssh/id_rsa
 
-# Debug: Check key format
+# Debug output
 echo "[DEBUG] Key file info:"
 ls -lh /root/.ssh/id_rsa
-echo "[DEBUG] First line of key:"
-head -1 /root/.ssh/id_rsa
-echo "[DEBUG] Last line of key:"
-tail -1 /root/.ssh/id_rsa
-echo "[DEBUG] Key has $(wc -l < /root/.ssh/id_rsa) lines"
+echo "[DEBUG] First line: $(head -1 /root/.ssh/id_rsa)"
+echo "[DEBUG] Last line: $(tail -1 /root/.ssh/id_rsa)"
+echo "[DEBUG] Total lines: $(wc -l < /root/.ssh/id_rsa)"
 
-# Validate key can be read by SSH
+# Validate key
 if ! ssh-keygen -y -f /root/.ssh/id_rsa >/dev/null 2>&1; then
-    log_error "SSH private key is invalid or corrupted"
-    log_error "Please ensure you copied the complete, unencrypted private key"
-    log_error "Key should start with: -----BEGIN OPENSSH PRIVATE KEY-----"
-    log_error "Key should end with: -----END OPENSSH PRIVATE KEY-----"
+    log_error "SSH private key validation failed"
+    log_error "The key file has been written to /root/.ssh/id_rsa"
+    log_error "Please check the key format in your Home Assistant configuration"
     exit 1
 fi
 echo "[INFO] SSH key validated successfully"
