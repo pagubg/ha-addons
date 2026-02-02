@@ -44,22 +44,25 @@ chmod 700 /root/.ssh
 SSH_KEY_RAW=$(jq -r '.ssh_private_key' "$CONFIG_FILE")
 
 # Check if key is single-line (Home Assistant UI often strips newlines)
-if [[ $(echo "$SSH_KEY_RAW" | wc -l) -eq 1 ]]; then
+LINE_COUNT=$(echo "$SSH_KEY_RAW" | wc -l)
+if [[ $LINE_COUNT -eq 1 ]]; then
     log_info "Detected single-line key format, reformatting..."
 
-    # Extract components
-    BEGIN_LINE=$(echo "$SSH_KEY_RAW" | grep -o '^-----BEGIN[^-]*-----')
-    END_LINE=$(echo "$SSH_KEY_RAW" | grep -o '-----END[^-]*-----$')
+    # Extract base64 content using simple sed (BusyBox compatible)
+    # Remove everything before and including the BEGIN line
+    BASE64_CONTENT=$(echo "$SSH_KEY_RAW" | sed 's/.*-----BEGIN OPENSSH PRIVATE KEY-----//' | sed 's/-----END OPENSSH PRIVATE KEY-----.*//')
 
-    # Extract base64 content (everything between BEGIN and END)
-    BASE64_CONTENT=$(echo "$SSH_KEY_RAW" | sed 's/^-----BEGIN[^-]*-----\s*//' | sed 's/\s*-----END[^-]*-----$//')
+    # Trim whitespace
+    BASE64_CONTENT=$(echo "$BASE64_CONTENT" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     # Write properly formatted key
-    cat > /root/.ssh/id_rsa << EOF
-$BEGIN_LINE
-$BASE64_CONTENT
-$END_LINE
-EOF
+    cat > /root/.ssh/id_rsa << 'KEYEOF'
+-----BEGIN OPENSSH PRIVATE KEY-----
+KEYEOF
+    echo "$BASE64_CONTENT" >> /root/.ssh/id_rsa
+    cat >> /root/.ssh/id_rsa << 'KEYEOF'
+-----END OPENSSH PRIVATE KEY-----
+KEYEOF
 else
     # Key already has proper newlines
     echo "$SSH_KEY_RAW" > /root/.ssh/id_rsa
