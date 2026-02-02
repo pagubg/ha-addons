@@ -30,11 +30,36 @@ log_fatal() {
 
 # Get supervisor token
 get_supervisor_token() {
-    if [[ ! -f /run/secrets/SUPERVISOR_TOKEN ]]; then
-        log_fatal "Supervisor token not found"
-        return 1
+    # Debug: Check what's available
+    log_debug "Checking for Supervisor token..."
+    log_debug "Checking /run/secrets/SUPERVISOR_TOKEN: $(test -f /run/secrets/SUPERVISOR_TOKEN && echo 'EXISTS' || echo 'NOT FOUND')"
+    log_debug "Checking /run/secrets directory: $(test -d /run/secrets && echo 'EXISTS' || echo 'NOT FOUND')"
+    if [[ -d /run/secrets ]]; then
+        log_debug "Contents of /run/secrets:"
+        ls -la /run/secrets/ 2>&1 | while read line; do log_debug "  $line"; done
     fi
-    cat /run/secrets/SUPERVISOR_TOKEN
+    log_debug "Checking SUPERVISOR_TOKEN env var: $(test -n "$SUPERVISOR_TOKEN" && echo 'SET' || echo 'NOT SET')"
+
+    # Try file first (standard location)
+    if [[ -f /run/secrets/SUPERVISOR_TOKEN ]]; then
+        log_debug "Using token from /run/secrets/SUPERVISOR_TOKEN"
+        cat /run/secrets/SUPERVISOR_TOKEN
+        return 0
+    fi
+
+    # Try environment variable
+    if [[ -n "$SUPERVISOR_TOKEN" ]]; then
+        log_debug "Using token from SUPERVISOR_TOKEN environment variable"
+        echo "$SUPERVISOR_TOKEN"
+        return 0
+    fi
+
+    # Token not available
+    log_fatal "Supervisor token not found"
+    log_fatal "Checked: /run/secrets/SUPERVISOR_TOKEN (file) and \$SUPERVISOR_TOKEN (env var)"
+    log_fatal "The addon configuration has hassio_api: true, but Supervisor isn't providing the token"
+    log_fatal "Try: 1) Restart the addon  2) Reinstall the addon  3) Restart Home Assistant Supervisor"
+    return 1
 }
 
 # Call Supervisor API

@@ -13,6 +13,7 @@ startup: application
 boot: manual
 hassio_api: true
 hassio_role: backup
+auth_api: true
 map:
   - backup:rw
 
