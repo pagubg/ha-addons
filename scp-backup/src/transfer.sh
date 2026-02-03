@@ -108,6 +108,31 @@ verify_transfer() {
     return 0
 }
 
+# Delete a backup from remote server
+delete_remote_backup() {
+    local remote_host="$1"
+    local remote_port="$2"
+    local remote_user="$3"
+    local remote_path="$4"
+    local remote_file="$5"
+    local timeout="$6"
+
+    log_debug "Deleting remote backup: $remote_file"
+
+    if ! ssh -o ConnectTimeout="$timeout" \
+             -o StrictHostKeyChecking=no \
+             -o UserKnownHostsFile=/dev/null \
+             -p "$remote_port" \
+             "${remote_user}@${remote_host}" \
+             "rm -f '${remote_path}/${remote_file}'" 2>/dev/null; then
+        log_error "Failed to delete remote backup: $remote_file"
+        return 1
+    fi
+
+    log_info "Remote backup deleted: $remote_file"
+    return 0
+}
+
 # Transfer all available backups
 transfer_all_backups() {
     local remote_host="$1"
@@ -133,13 +158,15 @@ transfer_all_backups() {
         return 1
     fi
 
+    # Get only addon-created backups (not system backups from HAOS)
     local backups
-    if ! backups=$(get_all_backups); then
+    if ! backups=$(get_addon_created_backups); then
+        log_error "Failed to get addon-created backups list"
         return 1
     fi
 
     if [[ -z "$backups" ]]; then
-        log_notice "No backups to transfer"
+        log_notice "No addon-created backups to transfer"
         return 0
     fi
 
@@ -170,6 +197,9 @@ transfer_all_backups() {
             if [[ "$keep_local" != "true" && "$verify" == "true" ]]; then
                 delete_backup "$slug" || log_warning "Failed to delete backup: $slug"
             fi
+
+            # Remove from tracking file after successful transfer
+            remove_backup_from_tracking "$slug"
         else
             ((fail_count++))
             fail_files="${fail_files}${slug}"$'\n'
@@ -209,19 +239,25 @@ transfer_all_backups() {
     return 0
 }
 
-# Cleanup old local backups
+# Cleanup old addon-created backups (local and remote)
 cleanup_local_backups() {
     local delete_after_days="$1"
+    local remote_host="${2:-}"
+    local remote_port="${3:-}"
+    local remote_user="${4:-}"
+    local remote_path="${5:-}"
+    local timeout="${6:-300}"
 
     if [[ "$delete_after_days" -le 0 ]]; then
         log_debug "Local backup cleanup disabled"
         return 0
     fi
 
-    log_info "Cleaning up backups older than $delete_after_days days..."
+    log_info "Cleaning up addon-created backups older than $delete_after_days days..."
 
+    # Only get addon-created backups for cleanup (not system backups)
     local backups
-    if ! backups=$(get_all_backups); then
+    if ! backups=$(get_addon_created_backups); then
         return 1
     fi
 
@@ -245,9 +281,27 @@ cleanup_local_backups() {
         local age_days=$(( (current_time - file_time) / 86400 ))
 
         if [[ $age_days -gt $delete_after_days ]]; then
+            # Delete from Home Assistant
             if delete_backup "$slug"; then
                 ((deleted_count++))
                 deleted_files="${deleted_files}$(basename "$file")"$'\n'
+
+                # Delete from remote server if available
+                if [[ -n "$remote_host" && -n "$remote_port" && -n "$remote_user" && -n "$remote_path" ]]; then
+                    local remote_file="${slug}.tar"
+                    # Try to find actual remote filename (same search as transfer)
+                    if [[ ! -f "$file" ]]; then
+                        local found_file=$(find /backup -maxdepth 1 -name "*_${slug}.tar" -type f 2>/dev/null | head -1)
+                        if [[ -z "$found_file" ]]; then
+                            found_file=$(find /backup -maxdepth 1 -name "*${slug}*.tar" -type f 2>/dev/null | head -1)
+                        fi
+                        [[ -n "$found_file" ]] && remote_file="$(basename "$found_file")"
+                    fi
+                    delete_remote_backup "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$remote_file" "$timeout" || log_warning "Failed to delete remote backup: $remote_file"
+                fi
+
+                # Remove from tracking file
+                remove_backup_from_tracking "$slug"
             fi
         fi
     done <<< "$backups"
@@ -261,8 +315,8 @@ cleanup_local_backups() {
     fi
     echo "__END_CLEANUP__"
 
-    log_info "Cleanup complete - Deleted: $deleted_count backups"
+    log_info "Cleanup complete - Deleted: $deleted_count addon-created backup(s)"
     return 0
 }
 
-export -f transfer_backup verify_transfer transfer_all_backups cleanup_local_backups
+export -f transfer_backup verify_transfer delete_remote_backup transfer_all_backups cleanup_local_backups

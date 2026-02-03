@@ -34,6 +34,10 @@ create_new_backup() {
     fi
 
     log_info "Backup created successfully: $slug"
+
+    # Store created backup slug for tracking
+    echo "$slug" >> /data/addon_created_backups.txt
+
     echo "$slug"
 }
 
@@ -97,24 +101,29 @@ delete_backup() {
     log_info "Backup deleted: $slug"
 }
 
-# Get backups to transfer (filter by age if needed)
-get_backups_to_transfer() {
-    local delete_after_days="$1"
+# Get addon-created backups from tracking file
+get_addon_created_backups() {
+    local tracking_file="/data/addon_created_backups.txt"
 
-    log_info "Retrieving backups to transfer..."
-
-    local backups
-    if ! backups=$(get_all_backups); then
-        return 1
-    fi
-
-    if [[ -z "$backups" ]]; then
-        log_notice "No backups available for transfer"
+    if [[ ! -f "$tracking_file" ]]; then
+        log_debug "No addon-created backups tracking file found"
         return 0
     fi
 
-    echo "$backups"
+    cat "$tracking_file"
+}
+
+# Remove created backup from tracking file
+remove_backup_from_tracking() {
+    local slug="$1"
+    local tracking_file="/data/addon_created_backups.txt"
+
+    if [[ -f "$tracking_file" ]]; then
+        # Remove the line containing this slug
+        grep -v "^${slug}$" "$tracking_file" > "${tracking_file}.tmp" 2>/dev/null || true
+        mv "${tracking_file}.tmp" "$tracking_file"
+    fi
 }
 
 export -f create_new_backup get_all_backups get_backup_info
-export -f delete_backup get_backups_to_transfer
+export -f delete_backup get_addon_created_backups remove_backup_from_tracking

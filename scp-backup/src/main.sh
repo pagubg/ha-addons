@@ -29,6 +29,10 @@ VERIFY_TRANSFER=$(jq -r '.verify_transfer // true' "$CONFIG_FILE" 2>/dev/null ||
 KEEP_LOCAL_BACKUP=$(jq -r '.keep_local_backup // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
 DELETE_AFTER_DAYS=$(jq -r '.delete_after_days // 0' "$CONFIG_FILE" 2>/dev/null || echo "0")
 
+# Initialize tracking file for addon-created backups
+mkdir -p /data
+[[ ! -f /data/addon_created_backups.txt ]] && touch /data/addon_created_backups.txt
+
 # Debug: Show configuration
 log_debug "Configuration loaded:"
 log_debug "  Transfer mode: $TRANSFER_MODE"
@@ -160,7 +164,7 @@ else
     cleanup_output=""
     cleanup_deleted_count=0
     if [[ "$DELETE_AFTER_DAYS" -gt 0 ]]; then
-        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" 2>&1)
+        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" "$TRANSFER_TIMEOUT" 2>&1)
         cleanup_deleted_count=$(echo "$cleanup_output" | grep "^__DELETED_COUNT=" | cut -d'=' -f2)
     fi
 
