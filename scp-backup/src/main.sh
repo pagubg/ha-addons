@@ -142,17 +142,49 @@ else
         log_info "New backup created: $new_slug"
     fi
 
-    # Execute transfer
-    if ! transfer_all_backups "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" \
-                               "$TRANSFER_TIMEOUT" "$VERIFY_TRANSFER" "$KEEP_LOCAL_BACKUP" "$DELETE_AFTER_DAYS"; then
+    # Execute transfer and capture summary
+    transfer_output=$(transfer_all_backups "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" \
+                                           "$TRANSFER_TIMEOUT" "$VERIFY_TRANSFER" "$KEEP_LOCAL_BACKUP" "$DELETE_AFTER_DAYS" 2>&1)
+    transfer_result=$?
+
+    if [[ $transfer_result -ne 0 ]]; then
         log_error "Backup transfer failed"
         exit 1
     fi
 
-    # Cleanup old backups if configured
+    # Extract transfer summary
+    transfer_success_count=$(echo "$transfer_output" | grep "^__SUCCESS_COUNT=" | cut -d'=' -f2)
+    transfer_fail_count=$(echo "$transfer_output" | grep "^__FAIL_COUNT=" | cut -d'=' -f2)
+
+    # Cleanup old backups if configured and capture summary
+    cleanup_output=""
+    cleanup_deleted_count=0
     if [[ "$DELETE_AFTER_DAYS" -gt 0 ]]; then
-        cleanup_local_backups "$DELETE_AFTER_DAYS"
+        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" 2>&1)
+        cleanup_deleted_count=$(echo "$cleanup_output" | grep "^__DELETED_COUNT=" | cut -d'=' -f2)
     fi
+
+    # Print summary
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "BACKUP TRANSFER SUMMARY - $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "Transfer Mode: MANUAL"
+    echo "Remote Server: ${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}"
+    echo ""
+    echo "Transfer Results:"
+    echo "  Successful: ${transfer_success_count:-0}"
+    echo "  Failed: ${transfer_fail_count:-0}"
+    echo ""
+
+    if [[ -n "$cleanup_deleted_count" && "$cleanup_deleted_count" -gt 0 ]]; then
+        echo "Cleanup Results (Retention: $DELETE_AFTER_DAYS days):"
+        echo "  Deleted: $cleanup_deleted_count backup(s)"
+        echo ""
+    fi
+
+    echo "═══════════════════════════════════════════════════════════════"
+    echo ""
 
     log_info "Manual backup transfer completed successfully"
     exit 0

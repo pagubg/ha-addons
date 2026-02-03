@@ -145,6 +145,8 @@ transfer_all_backups() {
 
     local success_count=0
     local fail_count=0
+    local success_files=""
+    local fail_files=""
 
     while IFS= read -r slug; do
         [[ -z "$slug" ]] && continue
@@ -152,15 +154,42 @@ transfer_all_backups() {
         if transfer_backup "$slug" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout" "$verify"; then
             ((success_count++))
 
+            # Try to find the actual filename for reporting
+            local local_file="/backup/${slug}.tar"
+            if [[ ! -f "$local_file" ]]; then
+                local found_file=$(find /backup -maxdepth 1 -name "*_${slug}.tar" -type f 2>/dev/null | head -1)
+                if [[ -z "$found_file" ]]; then
+                    found_file=$(find /backup -maxdepth 1 -name "*${slug}*.tar" -type f 2>/dev/null | head -1)
+                fi
+                [[ -n "$found_file" ]] && local_file="$found_file"
+            fi
+
+            success_files="${success_files}$(basename "$local_file")"$'\n'
+
             # Delete local backup if configured and transfer was successful and verified
             if [[ "$keep_local" != "true" && "$verify" == "true" ]]; then
                 delete_backup "$slug" || log_warning "Failed to delete backup: $slug"
             fi
         else
             ((fail_count++))
+            fail_files="${fail_files}${slug}"$'\n'
             log_warning "Backup transfer failed: $slug (keeping local copy)"
         fi
     done <<< "$backups"
+
+    # Output summary info to stdout for main.sh to capture
+    echo "__TRANSFER_SUMMARY__"
+    echo "__SUCCESS_COUNT=$success_count"
+    echo "__FAIL_COUNT=$fail_count"
+    if [[ -n "$success_files" ]]; then
+        echo "__SUCCESS_FILES="
+        echo "$success_files"
+    fi
+    if [[ -n "$fail_files" ]]; then
+        echo "__FAIL_FILES="
+        echo "$fail_files"
+    fi
+    echo "__END_SUMMARY__"
 
     log_info "Transfer complete - Success: $success_count, Failed: $fail_count"
 
@@ -199,6 +228,7 @@ cleanup_local_backups() {
     [[ -z "$backups" ]] && return 0
 
     local deleted_count=0
+    local deleted_files=""
 
     while IFS= read -r slug; do
         [[ -z "$slug" ]] && continue
@@ -217,9 +247,19 @@ cleanup_local_backups() {
         if [[ $age_days -gt $delete_after_days ]]; then
             if delete_backup "$slug"; then
                 ((deleted_count++))
+                deleted_files="${deleted_files}$(basename "$file")"$'\n'
             fi
         fi
     done <<< "$backups"
+
+    # Output cleanup summary
+    echo "__CLEANUP_SUMMARY__"
+    echo "__DELETED_COUNT=$deleted_count"
+    if [[ -n "$deleted_files" ]]; then
+        echo "__DELETED_FILES="
+        echo "$deleted_files"
+    fi
+    echo "__END_CLEANUP__"
 
     log_info "Cleanup complete - Deleted: $deleted_count backups"
     return 0
