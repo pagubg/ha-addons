@@ -28,6 +28,7 @@ TRANSFER_TIMEOUT=$(jq -r '.transfer_timeout // 300' "$CONFIG_FILE" 2>/dev/null |
 VERIFY_TRANSFER=$(jq -r '.verify_transfer // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
 KEEP_LOCAL_BACKUP=$(jq -r '.keep_local_backup // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
 DELETE_AFTER_DAYS=$(jq -r '.delete_after_days // 0' "$CONFIG_FILE" 2>/dev/null || echo "0")
+BACKUP_NAME_PREFIX=$(jq -r '.backup_name_prefix // "hassio"' "$CONFIG_FILE" 2>/dev/null || echo "hassio")
 
 # Initialize tracking file for addon-created backups
 mkdir -p /data
@@ -148,7 +149,7 @@ else
 
     # Execute transfer and capture summary
     transfer_output=$(transfer_all_backups "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" \
-                                           "$TRANSFER_TIMEOUT" "$VERIFY_TRANSFER" "$KEEP_LOCAL_BACKUP" "$DELETE_AFTER_DAYS" 2>&1)
+                                           "$TRANSFER_TIMEOUT" "$VERIFY_TRANSFER" "$KEEP_LOCAL_BACKUP" "$DELETE_AFTER_DAYS" "$BACKUP_NAME_PREFIX" 2>&1)
     transfer_result=$?
 
     if [[ $transfer_result -ne 0 ]]; then
@@ -163,9 +164,13 @@ else
     # Cleanup old backups if configured and capture summary
     cleanup_output=""
     cleanup_deleted_count=0
+    remote_cleanup_output=""
+    remote_cleanup_deleted_count=0
     if [[ "$DELETE_AFTER_DAYS" -gt 0 ]]; then
-        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" "$TRANSFER_TIMEOUT" 2>&1)
+        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" 2>&1)
         cleanup_deleted_count=$(echo "$cleanup_output" | grep "^__DELETED_COUNT=" | cut -d'=' -f2)
+        remote_cleanup_output=$(cleanup_remote_backups "$DELETE_AFTER_DAYS" "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" "$BACKUP_NAME_PREFIX" "$TRANSFER_TIMEOUT" 2>&1)
+        remote_cleanup_deleted_count=$(echo "$remote_cleanup_output" | grep "^__REMOTE_DELETED_COUNT=" | cut -d'=' -f2)
     fi
 
     # Print summary
@@ -181,9 +186,10 @@ else
     echo "  Failed: ${transfer_fail_count:-0}"
     echo ""
 
-    if [[ -n "$cleanup_deleted_count" && "$cleanup_deleted_count" -gt 0 ]]; then
+    if [[ "$DELETE_AFTER_DAYS" -gt 0 ]]; then
         echo "Cleanup Results (Retention: $DELETE_AFTER_DAYS days):"
-        echo "  Deleted: $cleanup_deleted_count backup(s)"
+        echo "  Local deleted:  ${cleanup_deleted_count:-0} backup(s)"
+        echo "  Remote deleted: ${remote_cleanup_deleted_count:-0} backup(s)"
         echo ""
     fi
 

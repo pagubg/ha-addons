@@ -14,6 +14,7 @@ transfer_backup() {
     local remote_path="$5"
     local timeout="$6"
     local verify="${7:-true}"
+    local prefix="${8:-hassio}"
 
     # Try direct slug.tar format first (standard Home Assistant format)
     local local_file="/backup/${slug}.tar"
@@ -49,7 +50,8 @@ transfer_backup() {
     local size_formatted
     size_formatted=$(format_bytes "$local_size")
 
-    log_info "Transferring backup: $slug ($size_formatted)"
+    local remote_filename="${prefix}_${slug}.tar"
+    log_info "Transferring backup: $slug ($size_formatted) -> ${remote_filename}"
 
     if ! scp -o Compression=yes \
              -o ConnectTimeout="$timeout" \
@@ -59,7 +61,7 @@ transfer_backup() {
              -o UserKnownHostsFile=/dev/null \
              -P "$remote_port" \
              "$local_file" \
-             "${remote_user}@${remote_host}:${remote_path}/" 2>&1; then
+             "${remote_user}@${remote_host}:${remote_path}/${remote_filename}" 2>&1; then
         log_error "Failed to transfer backup: $slug"
         return 1
     fi
@@ -67,7 +69,7 @@ transfer_backup() {
     log_info "Backup transferred successfully: $slug"
 
     if [[ "$verify" == "true" ]]; then
-        if ! verify_transfer "$slug" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout"; then
+        if ! verify_transfer "$slug" "$local_file" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout" "$prefix"; then
             log_error "Transfer verification failed for: $slug"
             return 1
         fi
@@ -79,14 +81,15 @@ transfer_backup() {
 # Verify transfer by comparing file sizes
 verify_transfer() {
     local slug="$1"
-    local remote_host="$2"
-    local remote_port="$3"
-    local remote_user="$4"
-    local remote_path="$5"
-    local timeout="$6"
+    local local_file="$2"
+    local remote_host="$3"
+    local remote_port="$4"
+    local remote_user="$5"
+    local remote_path="$6"
+    local timeout="$7"
+    local prefix="${8:-hassio}"
 
-    local local_file="/backup/${slug}.tar"
-    local remote_file="${remote_path}/${slug}.tar"
+    local remote_file="${remote_path}/${prefix}_${slug}.tar"
 
     log_debug "Verifying transfer for: $slug"
 
@@ -108,31 +111,6 @@ verify_transfer() {
     return 0
 }
 
-# Delete a backup from remote server
-delete_remote_backup() {
-    local remote_host="$1"
-    local remote_port="$2"
-    local remote_user="$3"
-    local remote_path="$4"
-    local remote_file="$5"
-    local timeout="$6"
-
-    log_debug "Deleting remote backup: $remote_file"
-
-    if ! ssh -o ConnectTimeout="$timeout" \
-             -o StrictHostKeyChecking=no \
-             -o UserKnownHostsFile=/dev/null \
-             -p "$remote_port" \
-             "${remote_user}@${remote_host}" \
-             "rm -f '${remote_path}/${remote_file}'" 2>/dev/null; then
-        log_error "Failed to delete remote backup: $remote_file"
-        return 1
-    fi
-
-    log_info "Remote backup deleted: $remote_file"
-    return 0
-}
-
 # Transfer all available backups
 transfer_all_backups() {
     local remote_host="$1"
@@ -143,6 +121,7 @@ transfer_all_backups() {
     local verify="${6:-true}"
     local keep_local="${7:-true}"
     local delete_after_days="${8:-0}"
+    local prefix="${9:-hassio}"
 
     log_info "Starting backup transfer..."
 
@@ -178,20 +157,11 @@ transfer_all_backups() {
     while IFS= read -r slug; do
         [[ -z "$slug" ]] && continue
 
-        if transfer_backup "$slug" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout" "$verify"; then
+        if transfer_backup "$slug" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout" "$verify" "$prefix"; then
             ((success_count++))
 
-            # Try to find the actual filename for reporting
-            local local_file="/backup/${slug}.tar"
-            if [[ ! -f "$local_file" ]]; then
-                local found_file=$(find /backup -maxdepth 1 -name "*_${slug}.tar" -type f 2>/dev/null | head -1)
-                if [[ -z "$found_file" ]]; then
-                    found_file=$(find /backup -maxdepth 1 -name "*${slug}*.tar" -type f 2>/dev/null | head -1)
-                fi
-                [[ -n "$found_file" ]] && local_file="$found_file"
-            fi
-
-            success_files="${success_files}$(basename "$local_file")"$'\n'
+            local remote_filename="${prefix}_${slug}.tar"
+            success_files="${success_files}${remote_filename}"$'\n'
 
             # Delete local backup if configured and transfer was successful and verified
             if [[ "$keep_local" != "true" && "$verify" == "true" ]]; then
@@ -239,14 +209,9 @@ transfer_all_backups() {
     return 0
 }
 
-# Cleanup old addon-created backups (local and remote)
+# Cleanup old addon-created backups (local only)
 cleanup_local_backups() {
     local delete_after_days="$1"
-    local remote_host="${2:-}"
-    local remote_port="${3:-}"
-    local remote_user="${4:-}"
-    local remote_path="${5:-}"
-    local timeout="${6:-300}"
 
     if [[ "$delete_after_days" -le 0 ]]; then
         log_debug "Local backup cleanup disabled"
@@ -281,26 +246,9 @@ cleanup_local_backups() {
         local age_days=$(( (current_time - file_time) / 86400 ))
 
         if [[ $age_days -gt $delete_after_days ]]; then
-            # Delete from Home Assistant
             if delete_backup "$slug"; then
                 ((deleted_count++))
                 deleted_files="${deleted_files}$(basename "$file")"$'\n'
-
-                # Delete from remote server if available
-                if [[ -n "$remote_host" && -n "$remote_port" && -n "$remote_user" && -n "$remote_path" ]]; then
-                    local remote_file="${slug}.tar"
-                    # Try to find actual remote filename (same search as transfer)
-                    if [[ ! -f "$file" ]]; then
-                        local found_file=$(find /backup -maxdepth 1 -name "*_${slug}.tar" -type f 2>/dev/null | head -1)
-                        if [[ -z "$found_file" ]]; then
-                            found_file=$(find /backup -maxdepth 1 -name "*${slug}*.tar" -type f 2>/dev/null | head -1)
-                        fi
-                        [[ -n "$found_file" ]] && remote_file="$(basename "$found_file")"
-                    fi
-                    delete_remote_backup "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$remote_file" "$timeout" || log_warning "Failed to delete remote backup: $remote_file"
-                fi
-
-                # Remove from tracking file
                 remove_backup_from_tracking "$slug"
             fi
         fi
@@ -315,8 +263,53 @@ cleanup_local_backups() {
     fi
     echo "__END_CLEANUP__"
 
-    log_info "Cleanup complete - Deleted: $deleted_count addon-created backup(s)"
+    log_info "Local cleanup complete - Deleted: $deleted_count addon-created backup(s)"
     return 0
 }
 
-export -f transfer_backup verify_transfer delete_remote_backup transfer_all_backups cleanup_local_backups
+# Cleanup old backups on the remote server by prefix pattern and age
+cleanup_remote_backups() {
+    local delete_after_days="$1"
+    local remote_host="$2"
+    local remote_port="$3"
+    local remote_user="$4"
+    local remote_path="$5"
+    local prefix="$6"
+    local timeout="${7:-300}"
+
+    if [[ "$delete_after_days" -le 0 ]]; then
+        log_debug "Remote backup cleanup disabled"
+        return 0
+    fi
+
+    log_info "Cleaning up remote backups older than $delete_after_days days (pattern: ${prefix}_*.tar)..."
+
+    local ssh_opts="-o ConnectTimeout=${timeout} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${remote_port}"
+
+    # Find files matching the prefix pattern that are older than delete_after_days
+    local deleted_files
+    deleted_files=$(ssh $ssh_opts "${remote_user}@${remote_host}" \
+        "find '${remote_path}' -maxdepth 1 -name '${prefix}_*.tar' -mtime +${delete_after_days} -type f 2>/dev/null" || true)
+
+    local deleted_count=0
+    if [[ -n "$deleted_files" ]]; then
+        if ! ssh $ssh_opts "${remote_user}@${remote_host}" \
+            "find '${remote_path}' -maxdepth 1 -name '${prefix}_*.tar' -mtime +${delete_after_days} -type f -delete 2>/dev/null"; then
+            log_warning "Some remote files may not have been deleted"
+        fi
+        deleted_count=$(echo "$deleted_files" | grep -c '.' || echo 0)
+    fi
+
+    echo "__REMOTE_CLEANUP_SUMMARY__"
+    echo "__REMOTE_DELETED_COUNT=$deleted_count"
+    if [[ -n "$deleted_files" ]]; then
+        echo "__REMOTE_DELETED_FILES="
+        echo "$deleted_files"
+    fi
+    echo "__END_REMOTE_CLEANUP__"
+
+    log_info "Remote cleanup complete - Deleted: $deleted_count backup(s)"
+    return 0
+}
+
+export -f transfer_backup verify_transfer transfer_all_backups cleanup_local_backups cleanup_remote_backups
