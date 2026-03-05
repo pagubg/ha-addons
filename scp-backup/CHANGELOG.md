@@ -2,6 +2,21 @@
 
 All notable changes to the SCP Backup addon are documented in this file.
 
+## [1.0.14] - 2026-03-05
+
+### Fixed
+
+- **Local backup retention now works correctly**: slugs are kept in `addon_created_backups.txt` after a successful transfer instead of being removed immediately, so `cleanup_local_backups` can find them later
+- **Remote as source of truth for local cleanup**: `cleanup_local_backups` now SSH-checks that `${prefix}_${slug}.tar` exists on the remote server before deleting the local copy; backups not yet transferred are never deleted locally
+- **Orphaned tracking entries cleaned up automatically**: if a slug is in the tracking file but the local file no longer exists, the entry is removed silently (housekeeping)
+
+### Changed
+
+- `cleanup_local_backups` signature extended with remote connection parameters (`remote_host`, `remote_port`, `remote_user`, `remote_path`, `prefix`, `timeout`)
+- `transfer_all_backups` is now idempotent: before each SCP call it checks whether `${prefix}_${slug}.tar` already exists on the remote and skips re-transfer if so
+- Local cleanup and remote cleanup only run when at least one transfer succeeded in the current run (`transfer_success_count > 0` guard)
+- When `keep_local_backup=false`, the slug is removed from tracking immediately after the local file is deleted (both on first transfer and on already-transferred skips)
+
 ## [1.0.13] - 2026-02-24
 
 ### Added

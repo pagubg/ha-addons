@@ -154,22 +154,37 @@ transfer_all_backups() {
     local success_files=""
     local fail_files=""
 
+    local ssh_opts="-o ConnectTimeout=${timeout} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${remote_port}"
+
     while IFS= read -r slug; do
         [[ -z "$slug" ]] && continue
 
-        if transfer_backup "$slug" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout" "$verify" "$prefix"; then
-            ((success_count++))
+        local remote_filename="${prefix}_${slug}.tar"
 
-            local remote_filename="${prefix}_${slug}.tar"
+        # Skip if already present on remote (idempotent re-runs)
+        if ssh $ssh_opts "${remote_user}@${remote_host}" "test -f '${remote_path}/${remote_filename}'" 2>/dev/null; then
+            log_info "Already transferred, skipping: $slug"
+            ((success_count++))
             success_files="${success_files}${remote_filename}"$'\n'
 
-            # Delete local backup if configured and transfer was successful and verified
+            # Delete local copy if keep_local=false
+            if [[ "$keep_local" != "true" ]]; then
+                delete_backup "$slug" || log_warning "Failed to delete backup: $slug"
+                remove_backup_from_tracking "$slug"
+            fi
+            continue
+        fi
+
+        if transfer_backup "$slug" "$remote_host" "$remote_port" "$remote_user" "$remote_path" "$timeout" "$verify" "$prefix"; then
+            ((success_count++))
+            success_files="${success_files}${remote_filename}"$'\n'
+
+            # Delete local backup immediately if keep_local=false
             if [[ "$keep_local" != "true" && "$verify" == "true" ]]; then
                 delete_backup "$slug" || log_warning "Failed to delete backup: $slug"
+                remove_backup_from_tracking "$slug"
             fi
-
-            # Remove from tracking file after successful transfer
-            remove_backup_from_tracking "$slug"
+            # Slug stays in tracking file when keep_local=true; cleanup_local_backups handles removal
         else
             ((fail_count++))
             fail_files="${fail_files}${slug}"$'\n'
@@ -210,8 +225,15 @@ transfer_all_backups() {
 }
 
 # Cleanup old addon-created backups (local only)
+# Uses remote as source of truth: only deletes locally if confirmed present on remote.
 cleanup_local_backups() {
     local delete_after_days="$1"
+    local remote_host="$2"
+    local remote_port="$3"
+    local remote_user="$4"
+    local remote_path="$5"
+    local prefix="${6:-hassio}"
+    local timeout="${7:-300}"
 
     if [[ "$delete_after_days" -le 0 ]]; then
         log_debug "Local backup cleanup disabled"
@@ -219,6 +241,8 @@ cleanup_local_backups() {
     fi
 
     log_info "Cleaning up addon-created backups older than $delete_after_days days..."
+
+    local ssh_opts="-o ConnectTimeout=${timeout} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${remote_port}"
 
     # Only get addon-created backups for cleanup (not system backups)
     local backups
@@ -235,7 +259,11 @@ cleanup_local_backups() {
         [[ -z "$slug" ]] && continue
 
         local file="/backup/${slug}.tar"
+
+        # Housekeeping: slug no longer on disk
         if [[ ! -f "$file" ]]; then
+            log_debug "Local file missing for tracked slug, removing from tracking: $slug"
+            remove_backup_from_tracking "$slug"
             continue
         fi
 
@@ -245,12 +273,21 @@ cleanup_local_backups() {
         current_time=$(date +%s)
         local age_days=$(( (current_time - file_time) / 86400 ))
 
-        if [[ $age_days -gt $delete_after_days ]]; then
-            if delete_backup "$slug"; then
-                ((deleted_count++))
-                deleted_files="${deleted_files}$(basename "$file")"$'\n'
-                remove_backup_from_tracking "$slug"
-            fi
+        if [[ $age_days -le $delete_after_days ]]; then
+            continue
+        fi
+
+        # Only delete locally if confirmed present on remote
+        local remote_filename="${prefix}_${slug}.tar"
+        if ! ssh $ssh_opts "${remote_user}@${remote_host}" "test -f '${remote_path}/${remote_filename}'" 2>/dev/null; then
+            log_warning "Skipping local delete for $slug: not yet confirmed on remote"
+            continue
+        fi
+
+        if delete_backup "$slug"; then
+            ((deleted_count++))
+            deleted_files="${deleted_files}$(basename "$file")"$'\n'
+            remove_backup_from_tracking "$slug"
         fi
     done <<< "$backups"
 

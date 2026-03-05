@@ -166,8 +166,8 @@ else
     cleanup_deleted_count=0
     remote_cleanup_output=""
     remote_cleanup_deleted_count=0
-    if [[ "$DELETE_AFTER_DAYS" -gt 0 ]]; then
-        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" 2>&1)
+    if [[ "$DELETE_AFTER_DAYS" -gt 0 && "${transfer_success_count:-0}" -gt 0 ]]; then
+        cleanup_output=$(cleanup_local_backups "$DELETE_AFTER_DAYS" "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" "$BACKUP_NAME_PREFIX" "$TRANSFER_TIMEOUT" 2>&1)
         cleanup_deleted_count=$(echo "$cleanup_output" | grep "^__DELETED_COUNT=" | cut -d'=' -f2)
         remote_cleanup_output=$(cleanup_remote_backups "$DELETE_AFTER_DAYS" "$SSH_HOST" "$SSH_PORT" "$SSH_USER" "$REMOTE_PATH" "$BACKUP_NAME_PREFIX" "$TRANSFER_TIMEOUT" 2>&1)
         remote_cleanup_deleted_count=$(echo "$remote_cleanup_output" | grep "^__REMOTE_DELETED_COUNT=" | cut -d'=' -f2)
